@@ -1,0 +1,485 @@
+---
+title: "COVID-19 Report: Comparing the US and Canada"
+author: "Luke Shi"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(lubridate)
+```
+# **Abstract**
+
+COVID-19 is a virus that had enormous global impact. Today, a comparison between the US and Canada will be performed to observe the differences between the cases and deaths caused by COVID-19. It will be interesting to see the differences between two neighboring countries that are quite similar in government, culture, and geographic location. Through data visualizations it appears that Canada has a lower rate of cases and deaths among its population.
+
+# **Importing Data**
+
+## Loading the CSV Data from GitHub
+
+The COVID19 data set is loaded from a GitHub repository. Four main CSV files are initially loaded and they contain data on the total number of global cases, the total number of global deaths, the total number of US cases, and the total number of US deaths. The URLs required are generated through a concatenation between the first part of the URL and the last part, which is the part that varies. Lastly, a UID_ISO_FIPS_LookUp_Table CSV file is loaded which will be used later.
+
+```{r load dataset}
+url_in <- "https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/"
+file_names <- c("time_series_covid19_confirmed_global.csv", 
+                "time_series_covid19_deaths_global.csv",
+                "time_series_covid19_confirmed_US.csv",
+                "time_series_covid19_deaths_US.csv")
+urls <- str_c(url_in, file_names)
+uid_lookup_url <- "https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/UID_ISO_FIPS_LookUp_Table.csv"
+```
+
+## Creating the Initial Data Tables
+
+After reading the CSV files, four initial tables are created called: "global_cases", "global_deaths", "US_cases", "US_deaths". The uid_lookup_url will also be read in for later and called "uid".
+
+```{r creating initial data tables, message = FALSE}
+global_cases <- read_csv(urls[1])
+global_deaths <- read_csv(urls[2])
+US_cases <- read_csv(urls[3])
+US_deaths <- read_csv(urls[4])
+uid <- read_csv(uid_lookup_url)
+```
+
+# **Data Pre-processing**
+
+## Viewing the global_cases Data 1
+
+The global_cases table is inspected to view how the data looks like. Notably, it appears that there is a column for "Lat" and "Long" and then a column afterwards for every date. 
+
+```{r viewing global_cases data 1}
+global_cases
+```
+
+## Tidying Up the global_cases Data
+
+Since the "Lat" and "Long" columns will not be used in future analysis (expected to represent the latitude and longitude of the Country/Region column), those columns will be removed. Also the dates columns and the number of cases under each column will become two columns in total. One "date" column which will list all the dates for a Country/Region and a "cases" column which will list the total number of cases per date.
+
+```{r tidying up global_cases data, message = FALSE}
+global_cases <- global_cases %>%
+  pivot_longer(cols = -c(`Province/State`,
+                         `Country/Region`, Lat, Long),
+               names_to = "date",
+               values_to = "cases") %>%
+  select(-c(Lat,Long))
+```
+
+## Viewing the global_cases Data 2
+
+Now the global_cases data is viewed and the data should look more tidy.
+
+```{r viewing global_cases data 2}
+global_cases
+```
+
+## Viewing the global_deaths Data 1
+
+The global_deaths table will also be viewed to get an idea of how the data looks like.
+
+```{r viewing global_deaths data 1}
+global_deaths
+```
+
+## Tidying Up the global_deaths Data
+
+The same code that was applied to the global_cases data will now be similarly applied to the global_deaths data.
+
+```{r tidying up global_deaths data, message = FALSE}
+global_deaths <- global_deaths %>%
+  pivot_longer(cols = -c(`Province/State`,
+                         `Country/Region`, Lat, Long),
+               names_to = "date",
+               values_to = "deaths") %>%
+  select(-c(Lat,Long))
+```
+
+## Viewing the global_deaths Data 2
+
+Similar to the global_cases data, the global_deaths data should look more tidy now.
+
+```{r viewing global_deaths data 2}
+global_deaths
+```
+
+## Combining global_cases and global_deaths into one set called "global"
+
+After tidying up the global_cases and global_deaths data they will be combined (full joined) into the "global" data set. Also, the date column will be changed into a date object since it was not one before.
+
+```{r combining global_cases and global_deaths into global, message = FALSE}
+global <- global_cases %>%
+  full_join(global_deaths) %>%
+  rename(Country_Region = `Country/Region`,
+         Province_State = `Province/State`) %>%
+  mutate(date = mdy(date))
+```
+
+## Viewing the global Data 1
+
+Let's view the global data now to see how it looks like. There should now be a cases and deaths column.
+
+```{r viewing the global data 1}
+global
+```
+
+## Viewing a Summary of global Data
+
+Let's view a summary of the global data.
+
+```{r viewing the global data summary}
+summary(global)
+```
+
+## Removing Rows with 0 Cases
+
+It looks like there are a lot of rows where there are 0 cases. Let's remove the rows where cases = 0 and then check the summary again to make sure they are removed.
+
+```{r remove rows with 0 cases}
+global <- global %>% filter(cases > 0)
+summary(global)
+```
+
+## Viewing the US_cases Data 1
+
+Let's view the US_cases data to see how it looks like.
+
+```{r viewing the US_cases data 1}
+US_cases
+```
+
+## Tidying Up the US_cases Data
+
+There seems to be some odd codes in the first 5 columns that will not be used. Similar to the global_cases data, the dates and cases will be pivoted and the "Lat" and "Long" columns will be removed. The dates column is also a character vector which will need to be converted into a date vector. 
+
+```{r tidying up the US_cases data, message = FALSE}
+US_cases <- US_cases %>%
+  pivot_longer(cols = -(UID:Combined_Key),
+               names_to = "date",
+               values_to = "cases") %>%
+  select(Admin2:cases) %>%
+  mutate(date = mdy(date)) %>%
+  select(-c(Lat, Long_))
+```
+
+## Viewing the US_cases Data 2
+
+Let's view the US_cases data and confirm that all the changes went through properly.
+
+```{r viewing the US_cases data 2}
+US_cases
+```
+
+## Viewing the US_deaths Data 1
+
+Now let's view the US_deaths data to see if there are any differences in format compared to the US_cases data. If they are the same, then the US_deaths data will be tidied similar to how the US_cases data was tidied.
+
+```{r viewing the US_deaths data 1}
+US_deaths
+```
+
+## Tidying Up the US_deaths data
+
+Since, the US_deaths data appears to have similar columns as the original US_cases data, let's tidy it up in a similar way. Ultimately, there should be a date and cases column and the "Lat", "Long", and any other irrelevant columns should be removed. The date column should also be a date object.
+
+```{r tidying up the US_deaths data, message = FALSE}
+US_deaths <- US_deaths %>%
+  pivot_longer(cols = -(UID:Population),
+               names_to = "date",
+               values_to = "deaths") %>%
+  select(Admin2:deaths) %>%
+  mutate(date = mdy(date)) %>%
+  select(-c(Lat, Long_))
+```
+
+## Viewing the US_deaths Data 2
+
+Now let's look at the US_deaths data. Interestingly, there is a column for population data which isn't present in the US_cases data.
+
+```{r viewing the US_deaths data 2}
+US_deaths
+```
+
+## Full-Joining the US Data
+
+Since the US_cases data doesn't have a population column, it will be full-joined with the US_deaths data.
+
+```{r full-joining the US data, message = FALSE}
+US <- US_cases %>% 
+  full_join(US_deaths)
+```
+
+## Viewing the US Data 
+
+Now the US data will be viewed to ensure the transformation was performed.
+
+```{r viewing the US data}
+US
+```
+
+## Viewing the uid Data 1
+
+The uid data is viewed to see what information is present. In order to do any population analysis with the global data, population data is required.
+
+```{r viewing the uid data 1}
+uid
+```
+
+## Tidying up the uid Data
+
+It appears the uid data does have population data. Since the population data is needed, it will be selected. The Province_State and Country_Regions will also be selected since they are needed to join the uid data with the global data.
+
+```{r tidying up the uid data}
+uid <- uid %>% select(Province_State, Country_Region, Population)
+```
+
+## Creating a Combined Key for the Global Data
+
+Before adding the population data into the global data, the Province_State and Country_Region columns in global will be used and combined to create a new column called "Combined_Key". The Province_State and Country_Region columns will still exist.
+
+```{r creating a combined key for the global data}
+global <- global %>%
+  unite("Combined_Key",
+        c(Province_State, Country_Region),
+        sep = ", ",
+        na.rm = TRUE,
+        remove = FALSE)
+```
+
+## Viewing the global Data 2
+
+Now the global data is viewed to check that the new Combined_Key column is present.
+
+```{r viewing the global data 2}
+global
+```
+
+## Adding a Population Column to the global Data
+
+Now a left-join will be performed on the global data with the uid data to add the population data in. The global data should have a new population column after the join.
+
+```{r adding a population columnn to the global data}
+global <- global %>%
+  left_join(uid, by = c("Province_State", "Country_Region")) %>%
+  select(Province_State, Country_Region, date, 
+         cases, deaths, Population, Combined_Key)
+```
+
+## Viewing the global Data 3
+
+Now the global data is viewed the ensure the transformation was performed.
+
+```{r viewing the global data 3}
+global
+```
+
+# **Data Visualization**
+
+## Viewing Distinct Population Values for US and Canada
+
+To get a proper visualization of the cumulative COVID-19 Cases as a percentage of the population over time of US and Canada, the population values of that exist per country must be checked to see how many unique values there are. If there is more than one unique value it is possible that the population of the states/provinces is being used.
+
+```{r viewing distinct population values for US and Canada}
+global %>%
+  filter(Country_Region %in% c("US", "Canada")) %>%
+  group_by(Country_Region) %>%
+  summarize(
+    n_rows = n(),
+    unique_pop_vals = n_distinct(Population),
+    pop_values = paste(unique(Population), collapse = ", ")
+  )
+```
+
+## Obtaining Canada's Total Population 1
+
+It appears that there are 14 unique values (one is suspected to be N/A). Now each unique value will be viewed.
+
+``` {r obtaining canadas total population 1}
+global %>%
+  filter(Country_Region == "Canada", !is.na(Population)) %>%
+  distinct(Population) %>%
+  arrange(desc(Population))
+```
+
+## Obtaining Canada's Total Population 2
+
+Looks like there are only 13 unique numerical values. This makes sense since there are 10 provinces and 3 territories in Canada which equals 13 regions in total. Now each unique value will be added into a variable called "canada_total_pop". The variable will then be viewed to check the total population.
+
+```{r obtaining canadas total population 2}
+canada_total_pop <- sum(c(
+  14826276, 8604495, 5214805, 4442879, 1383765, 1179844, 992055, 789225, 520553, 164318, 45504, 42986, 39403
+))
+canada_total_pop
+```
+
+## Creating a global_summary Table
+
+A global_summary table is created to prepare for visualizing the data of the cumulative COVID-19 cases as a percentage of the population over time in US and Canada. Specifically, 2 new columns will be created for the cases_percent and deaths_percent. The cases and deaths will expressed as a percentage of the total population to normalize the data. Also, a single unique value will be used for the population of the US and the population of Canada (which was obtained above). Then the table will be viewed to ensure proper construction.
+
+```{r creating a global summary table}
+global_summary <- global %>%
+  filter(Country_Region %in% c("US", "Canada")) %>%
+  group_by(Country_Region, date) %>%
+  summarize(
+    cases = sum(cases, na.rm = TRUE),
+    deaths = sum(deaths, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(Population = case_when(
+    Country_Region == "US" ~ 329466283,
+    Country_Region == "Canada" ~ 38246108
+  )) %>%
+  mutate(
+    cases_percent = cases / Population * 100,
+    deaths_percent = deaths / Population * 100
+  )
+global_summary
+```
+
+## Cumulative COVID-19 Cases as a Percentage of Population Over Time: US vs Canada
+
+Now the cases will be plotted as a percentage of the total population over time for US and Canada.
+
+```{r cumulative COVID-19 cases as a percentage of population over time over time US vs Canada)}
+ggplot(global_summary, aes(x = date, y = cases_percent, color = Country_Region)) + 
+  geom_line(linewidth = 1) + 
+  labs(
+    title = "Cumulative COVID-19 Cases as a Percentage of Population Over Time: US vs Canada",
+    x = "Date",
+    y = "Cases (% of Population)",
+    color = "Country"
+  ) +
+  theme_minimal()
+```
+
+## Cumulative COVID-19 Deaths as a Percentage of Population Over Time: US vs Canada
+
+The deaths will also be plotted as a percentage of the total population over time for US and Canada.
+
+```{r cumulative COVID-19 deaths per 1,000 people over time US vs Canada)}
+ggplot(global_summary, aes(x = date, y = deaths_percent, color = Country_Region)) + 
+  geom_line(linewidth = 1) + 
+  labs(
+    title = "Cumulative COVID-19 Deaths as a Percentage of Population Over Time: US vs Canada",
+    x = "Date",
+    y = "Deaths (% of Population)",
+    color = "Country"
+  ) +
+  theme_minimal()
+```
+
+# **Data Modeling**
+
+## Convert the Dates to a Numeric Format
+
+First, a new column called "day_number" will be created in the global_summary table using the date column. The day_number column will be a numeric data type.
+
+```{r convert the dates to a numeric format}
+global_summary <- global_summary %>%
+mutate(day_number = as.numeric(date))
+```
+## Preparing Filtered Data for Linear Models
+
+The US and Canada data will each be filtered into us_data and canada_data, respectively. This is to prepare the data before they are used for linear model creation.
+
+```{r preparing filtered data for linear models}
+us_data <- global_summary %>% filter(Country_Region == "US")
+canada_data <- global_summary %>% filter(Country_Region == "Canada")
+```
+
+## Creating the Four Linear Models
+
+The four linear models will now be created. Two models will be created for US and Canada. Each country will have a model for the cases and deaths.
+
+```{r creating the four linear models}
+us_cases_lm <- lm(cases_percent ~ day_number, data = us_data)
+us_deaths_lm <- lm(deaths_percent ~ day_number, data = us_data)
+canada_cases_lm <- lm(cases_percent ~ day_number, data = canada_data)
+canada_deaths_lm <- lm(deaths_percent ~ day_number, data = canada_data)
+```
+
+## Plotting the Linear Models Against Actual Data
+
+Each of the models will be plotted against the actual data to better visualize the model's fit. 
+
+```{r plotting the linear models against actual data, message = "FALSE"}
+ggplot(us_data, aes(x = day_number, y = cases_percent)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(method = "lm", se = FALSE, color = "red") + 
+  labs(title = "Linear Model Fit: US Cases as a Percentage of the Population",
+       x = "Day Number", y = "Cases (% of Population)")
+ggplot(us_data, aes(x = day_number, y = deaths_percent)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(method = "lm", se = FALSE, color = "red") + 
+  labs(title = "Linear Model Fit: US Deaths as a Percentage of the Population",
+       x = "Day Number", y = "Deaths (% of Population)")
+ggplot(canada_data, aes(x = day_number, y = cases_percent)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(method = "lm", se = FALSE, color = "red") + 
+  labs(title = "Linear Model Fit: Canada Cases as a Percentage of the Population",
+       x = "Day Number", y = "Cases (% of Population)")
+ggplot(canada_data, aes(x = day_number, y = deaths_percent)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(method = "lm", se = FALSE, color = "red") + 
+  labs(title = "Linear Model Fit: Canada Deaths as a Percentage of the Population",
+       x = "Day Number", y = "Deaths (% of Population)")
+```
+
+## Summary of the Linear Models
+
+A summary of the linear models will be viewed to see the R-squared value and the statistical significance. Based on the R-squared values and the p-values, we can see that all the models have at least a 0.94 R-squared value (with Canada deaths model having the highest at 0.989) which means that they are all good fitting models with R-squared values all above 0.94. Furthermore, the p-values all indicate that the trends are all statistically significant.
+
+```{r summary of the linear models}
+summary(us_cases_lm)
+summary(us_deaths_lm)
+summary(canada_cases_lm)
+summary(canada_deaths_lm)
+```
+
+# **Data Analysis**
+
+## Finding the Final Percentage of Cases and Deaths Per Country
+
+The goal is the report the final impact of cases and deaths as of the most recently recorded date for US and Canada. Once the final percentages are obtained the differences between the two countries can be compared.
+
+```{r finding the final percentage of cases and deaths per country}
+global_summary %>%
+  group_by(Country_Region) %>%
+  filter(date == max(date)) %>%
+  select(Country_Region, cases_percent, deaths_percent)
+```
+
+From this analysis, it's evident that the US had around (31.5/12.1) = 2.6 times more cases than Canada and (0.341/0.135) = 2.5 more deaths than Canada. Therefore for both cases and deaths US had a greater percentage of its population for the most recently recorded date than Canada.
+
+# **Conclusion**
+
+## Summary of Key Findings
+
+There are three main areas that are going to be summarized between the two countries: the final case/death percentages, comparative trends over time, and the model results.
+
+1. Final Case/Death Percentages
+
+It appears that US and Canada had a final case percentage of 31.5% and 12.1%, respectively. US and Canada had a final death percentage of 0.341% and 0.135%. In conclusion, at the most presently recorded date US had around 2.5 times more cases and deaths.
+
+2. Comparative Trends Over Time
+
+Judging from the two line graphs created it looks like both US and Canada had their cases and deaths rising in a somewhat linear fashion. There did, however, appear to be a surge in 2022 for cases. This could be due to less strict lock down conditions and a gradual reopening of the countries. This should be further investigated.
+
+3. Model Results
+
+The four linear models created all had statistically significant p-values and all had at least a 94% R-squared value which indicated a good fit.
+
+## Sources of Bias
+
+Finally, a few sources of bias will be addressed: testing availability and reporting bias, under reporting of deaths, and population demographics.
+
+1. Testing Availability and Reporting Bias
+
+Early on in the pandemic, testing was limited and many initial cases were likely missed, especially the asymptomatic cases. US and Canada may have also had different testing strategies, so the testing strategy may have had more impact on the reported cases numbers than initially thought. This will underestimate total infections especially in early 2020.
+
+2. Under Reporting of Deaths
+
+Since US and Canada are not the same country they may vary a bit in their definitions of COVID-19 related death. They would have to have the exact same definition to ensure they are measuring the deaths in the exact same way without bias. This could lead to unreported or wrongly classified deaths. 
+
+3. Population Demographics
+
+This report considers cases and deaths as a percentage of the total population, but doesn't account for factors such as age distribution, urban density, and health care system capacity. These factors could make a country's results look worse or better despite having similar policies. For example, older populations usually have higher death rates, and no analysis was done on the percentage of the older population in each country.
